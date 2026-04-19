@@ -4,7 +4,7 @@
 
 一款以**仙俠修煉**為主題的 LeetCode 刷題追蹤系統。將演算法練習轉化為修士闖關之路——每解一題即是淬煉修為，突破境界，覺醒聖體，參悟心經。
 
-> **⚠️ 目前版本為 v1.1**  
+> **⚠️ 目前版本為 v1.2**  
 > 已從網頁服務架構改為**本地桌面工具**，不再需要帳號/密碼/Email。直接 download、double-click 即可開始修煉。
 
 ---
@@ -14,7 +14,7 @@
 ### Windows
 
 1. 前往本專案的 [**Releases**](../../releases) 頁面
-2. 在最新版本的 **Assets** 區下載 `Code問仙門-Setup-x.x.x.exe`
+2. 在最新版本的 **Assets** 區下載 `Code問仙門 Setup x.x.x.exe`
 3. 雙擊執行安裝程式，點選「安裝」即可（不需要管理員權限）
 4. 安裝完成後：
    - **桌面**會自動出現「Code問仙門」捷徑
@@ -127,7 +127,8 @@
 - **仙俠主題 Dark Mode**：深石板色底 + 琥珀 / 翡翠螢光配色
 - **多場景背景**：洞府主視覺（background.png）、藏書閣（library-bg.png）背景自適應 cover
 - **Glassmorphism UI**：半透明卡片 + backdrop-blur
-- **Framer Motion 動畫**：進度條、粒子、Modal 開關、卡片互動
+- **CSS @keyframes 動畫**：背景粒子、光環、靈氣特效（純 CSS，低 CPU 佔用）
+- **Framer Motion 動畫**：進度條、Modal 開關、卡片互動
 - **動態洞府特效**（CultivatorImage）：
   - 白色靈塵全畫面隨機飄升消散
   - 白色波紋靈環從修士中心擴散
@@ -161,7 +162,7 @@
 ### 桌面殼層
 | 技術 | 說明 |
 |------|------|
-| Electron 35 | 桌面視窗 |
+| Electron 41 | 桌面視窗 |
 | electron-builder | 打包成 .exe / .dmg |
 
 ---
@@ -233,7 +234,7 @@ npm run electron:build
 | macOS | `~/Library/Application Support/Code問仙門/leet-cultivator.db` |
 | Linux | `~/.config/Code問仙門/leet-cultivator.db` |
 
-> 版本更新後**資料不會遺失**，Electron 啟動時自動執行 `prisma migrate deploy` 將舊資料庫結構升版。
+> 版本更新後**資料不會遺失**，Electron 啟動時自動讀取 `prisma/migrations/` 內的 `.sql` 檔逐一執行，將舊資料庫結構升版。
 
 ---
 
@@ -244,7 +245,7 @@ npm run electron:build
 ```
 Electron 開啟
   └─ runMigrations()
-       └─ prisma migrate deploy   ← 套用所有尚未執行的 migration
+       └─ 讀取 prisma/migrations/**/*.sql 逐句執行   ← 套用尚未執行的 migration
   └─ startServer()                ← 啟動 Express
   └─ createWindow()               ← 顯示 UI
 ```
