@@ -1,0 +1,142 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model User {
+  id               String   @id @default(uuid())
+  nickname         String
+  totalCultivation Int      @default(0)
+  currentRealmId   Int?
+  mainBodyTypeId   Int?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  realm            RealmLevel?           @relation(fields: [currentRealmId], references: [id])
+  mainBodyType     BodyType?             @relation(fields: [mainBodyTypeId], references: [id])
+  bodyTypes        UserBodyType[]
+  problemLogs      ProblemLog[]
+  tagProgress      UserTagProgress[]
+  dailyCheckins    DailyCheckin[]
+  progressSummary  UserProgressSummary?
+}
+
+model RealmLevel {
+  id               Int    @id @default(autoincrement())
+  name             String
+  minCultivation   Int
+  stage            String
+  subStage         String
+  level            String
+  Users            User[]
+}
+
+model BodyType {
+  id          Int    @id @default(autoincrement())
+  name        String
+  language    String @unique
+  description String
+  Users       User[]
+  UserBodyTypes UserBodyType[]
+}
+
+model UserBodyType {
+  id           Int      @id @default(autoincrement())
+  userId       String
+  bodyTypeId   Int
+  solvedCount  Int      @default(0)
+  level        String   @default("初成")
+  
+  user         User     @relation(fields: [userId], references: [id])
+  bodyType     BodyType @relation(fields: [bodyTypeId], references: [id])
+
+  @@unique([userId, bodyTypeId])
+}
+
+model Tag {
+  id          Int    @id @default(autoincrement())
+  name        String @unique
+  sutraName   String
+  ProblemLogTags ProblemLogTag[]
+  UserTagProgress UserTagProgress[]
+}
+
+model ProblemLog {
+  id              Int      @id @default(autoincrement())
+  userId          String
+  title           String
+  problemNumber   String?
+  difficulty      String
+  language        String
+  link            String?
+  completedAt     DateTime
+  cultivationEarned Int
+  createdAt       DateTime @default(now())
+
+  user            User     @relation(fields: [userId], references: [id])
+  note            CultivationNote?
+  tags            ProblemLogTag[]
+}
+
+model CultivationNote {
+  id              Int      @id @default(autoincrement())
+  problemLogId    Int      @unique
+  summary         String
+  stuckPoints     String
+  reviewReminders String
+
+  problemLog      ProblemLog @relation(fields: [problemLogId], references: [id], onDelete: Cascade)
+}
+
+model ProblemLogTag {
+  problemLogId Int
+  tagId        Int
+
+  problemLog   ProblemLog @relation(fields: [problemLogId], references: [id], onDelete: Cascade)
+  tag          Tag        @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([problemLogId, tagId])
+}
+
+model UserTagProgress {
+  id           Int    @id @default(autoincrement())
+  userId       String
+  tagId        Int
+  solvedCount  Int    @default(0)
+  level        Int    @default(0)
+  levelName    String @default("未解鎖")
+
+  user         User   @relation(fields: [userId], references: [id])
+  tag          Tag    @relation(fields: [tagId], references: [id])
+
+  @@unique([userId, tagId])
+}
+
+model DailyCheckin {
+  id           Int      @id @default(autoincrement())
+  userId       String
+  date         DateTime
+  createdAt    DateTime @default(now())
+
+  user         User     @relation(fields: [userId], references: [id])
+
+  @@unique([userId, date])
+}
+
+model UserProgressSummary {
+  id               Int    @id @default(autoincrement())
+  userId           String @unique
+  totalSolved      Int    @default(0)
+  easySolved       Int    @default(0)
+  mediumSolved     Int    @default(0)
+  hardSolved       Int    @default(0)
+  currentStreak    Int    @default(0)
+  longestStreak    Int    @default(0)
+  lastCheckinDate  DateTime?
+
+  user             User   @relation(fields: [userId], references: [id])
+}

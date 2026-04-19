@@ -1,0 +1,38 @@
+# Dependencies
+node_modules/
+
+# Build outputs (generated, do not commit)
+dist/
+dist-electron/
+build/
+release/
+
+# Compiled artifacts
+server.js
+
+# Generated assets (rebuilt by npm run build:icon)
+public/icon.ico
+
+# Database
+prisma/dev.db
+prisma/*.db
+*.db
+
+# Logs & coverage
+coverage/
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment (never commit real .env)
+.env*
+!.env.example
+
+# Project-specific notes / AI Studio metadata
+Code問仙門.txt
+metadata.json
+.env.example
+public/.keep
