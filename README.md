@@ -1,28 +1,9 @@
 ﻿# ⚔️ Code 問仙門 · LeetCultivator
 
-> 踏破虛空，超脫輪迴，晉升無上大道
-
-一款以**仙俠修煉**為主題的 LeetCode 刷題追蹤系統。將演算法練習轉化為修士闖關之路——每解一題即是淬煉修為，突破境界，覺醒聖體，參悟心經。
+一款以**仙俠修煉**為主題的 LeetCode 刷題追蹤系統，用成長系統的方式提升練習反饋。將演算法練習轉化為修士闖關之路——每解一題即是淬煉修為，突破境界，覺醒聖體，參悟心經。
 
 > **⚠️ 目前版本為 v1.2**  
 > 已從網頁服務架構改為**本地桌面工具**，不再需要帳號/密碼/Email。直接 download、double-click 即可開始修煉。
-
----
-
-## ⬇️ 下載安裝（一般用戶）
-
-### Windows
-
-1. 前往本專案的 [**Releases**](../../releases) 頁面
-2. 在最新版本的 **Assets** 區下載 `Code問仙門 Setup x.x.x.exe`
-3. 雙擊執行安裝程式，點選「安裝」即可（不需要管理員權限）
-4. 安裝完成後：
-   - **桌面**會自動出現「Code問仙門」捷徑
-   - **開始選單**也會新增程式捷徑
-5. 雙擊桌面捷徑即可開始修煉
-
-> **首次開啟**：輸入一個道號（暱稱）建立本地修士檔案，之後每次開啟自動進入。  
-> **資料儲存位置**：`%APPDATA%\Code問仙門\leet-cultivator.db`，版本更新後資料不會遺失。
 
 ---
 
@@ -86,7 +67,7 @@
   - 初成（0+）→ 小成（20+）→ 中成（60+）→ 大成（150+）→ 圓滿
 
 ### 設置（SettingsPage）
-- 查看道號（暱稱，不可修改）
+- 查看/修改 道號（暱稱）
 - 更換主要聖體（語言）顯示
 
 ### 初次啟動（AuthPage）
@@ -122,22 +103,6 @@
 
 ---
 
-## 🎨 視覺特色
-
-- **仙俠主題 Dark Mode**：深石板色底 + 琥珀 / 翡翠螢光配色
-- **多場景背景**：洞府主視覺（background.png）、藏書閣（library-bg.png）背景自適應 cover
-- **Glassmorphism UI**：半透明卡片 + backdrop-blur
-- **CSS @keyframes 動畫**：背景粒子、光環、靈氣特效（純 CSS，低 CPU 佔用）
-- **Framer Motion 動畫**：進度條、Modal 開關、卡片互動
-- **動態洞府特效**（CultivatorImage）：
-  - 白色靈塵全畫面隨機飄升消散
-  - 白色波紋靈環從修士中心擴散
-  - 三層迴旋靈環（翡翠色，旋轉方向各異）
-  - 腳下靈氣光柱呼吸縮放
-  - 底部霧靄 + 全場氤氳雲霧
-
----
-
 ## 🛠️ 技術架構
 
 ### 前端
@@ -167,7 +132,7 @@
 
 ---
 
-## 🗃️ 資料庫模型
+## 🗃️ 資料庫
 
 ```
 User                  使用者（道號、修為、當前境界、主聖體）
@@ -234,27 +199,7 @@ npm run electron:build
 | macOS | `~/Library/Application Support/Code問仙門/leet-cultivator.db` |
 | Linux | `~/.config/Code問仙門/leet-cultivator.db` |
 
-> 版本更新後**資料不會遺失**，Electron 啟動時自動讀取 `prisma/migrations/` 內的 `.sql` 檔逐一執行，將舊資料庫結構升版。
-
----
-
-## 🔄 版本遷移機制
-
-每次 Electron 啟動時自動執行，無需手動操作：
-
-```
-Electron 開啟
-  └─ runMigrations()
-       └─ 讀取 prisma/migrations/**/*.sql 逐句執行   ← 套用尚未執行的 migration
-  └─ startServer()                ← 啟動 Express
-  └─ createWindow()               ← 顯示 UI
-```
-
-開發時新增 schema 改動：
-```bash
-# 建立新的 migration（開發用）
-npm run db:migrate -- --name <改動描述>
-```
+> 版本更新後**資料不會遺失**，Electron 啟動時自動套用尚未執行的 migration，無需手動操作。
 
 ---
 
@@ -293,28 +238,5 @@ app/applet/prisma/
 
 ---
 
-## 🧪 API 端點一覽
 
-> 所有需要身份的 API 以 `x-user-id` header 傳遞使用者 ID（本地 UUID），無需 Token。
-
-| 方法 | 路徑 | 說明 |
-|------|------|------|
-| GET  | `/api/auth/status` | 取得本地 profile（無需 header） |
-| POST | `/api/auth/setup` | 建立本地 profile（首次，無需 header） |
-| GET  | `/api/auth/me` | 取得當前使用者 |
-| GET  | `/api/dashboard` | Dashboard 聚合資料 |
-| GET  | `/api/realms-overview` | 所有境界資料 |
-| GET  | `/api/sutras-overview` | 所有心經進度 |
-| GET  | `/api/history` | 修煉紀錄列表 |
-| POST | `/api/problems` | 新增修煉紀錄（含完整交易） |
-| PUT  | `/api/problems/:id` | 編輯修煉紀錄 |
-| DELETE | `/api/problems/:id` | 刪除修煉紀錄（級聯回滾） |
-| GET  | `/api/tags` | 所有心經標籤 |
-| GET  | `/api/checkins` | 簽到日期列表 |
-| GET  | `/api/body-types` | 所有聖體類型 |
-| POST | `/api/user/body-type` | 設定主聖體 |
-
----
-
-*願道友修為精進，早日飛升仙界。* 🌟
 
