@@ -4,7 +4,7 @@ generator client {
 
 datasource db {
   provider = "sqlite"
-  url      = "file:./dev.db"
+  url      = env("DATABASE_URL")
 }
 
 model User {
@@ -66,20 +66,36 @@ model Tag {
 }
 
 model ProblemLog {
-  id              Int      @id @default(autoincrement())
-  userId          String
-  title           String
-  problemNumber   String?
-  difficulty      String
-  language        String
-  link            String?
-  completedAt     DateTime
+  id                Int       @id @default(autoincrement())
+  userId            String
+  title             String
+  problemNumber     String?
+  difficulty        String
+  language          String
+  link              String?
+  completedAt       DateTime
   cultivationEarned Int
-  createdAt       DateTime @default(now())
+  createdAt         DateTime  @default(now())
 
-  user            User     @relation(fields: [userId], references: [id])
-  note            CultivationNote?
-  tags            ProblemLogTag[]
+  // Review system fields
+  reviewLevel       Int       @default(0)
+  nextReviewDate    DateTime?
+  lastReviewResult  String?   // "fail" | "ok" | "easy" | "done"
+
+  user              User      @relation(fields: [userId], references: [id])
+  note              CultivationNote?
+  tags              ProblemLogTag[]
+  reviewHistory     ReviewHistory[]
+}
+
+model ReviewHistory {
+  id           Int      @id @default(autoincrement())
+  problemLogId Int
+  reviewDate   DateTime
+  result       String   // "fail" | "ok" | "easy" | "done"
+  createdAt    DateTime @default(now())
+
+  problemLog   ProblemLog @relation(fields: [problemLogId], references: [id], onDelete: Cascade)
 }
 
 model CultivationNote {

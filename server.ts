@@ -144,6 +144,7 @@ export async function startServer(options?: { port?: number; host?: string }) {
     const userId = req.user.userId;
     try {
       await getPrisma().$transaction([
+        getPrisma().reviewHistory.deleteMany({ where: { problemLog: { userId } } }),
         getPrisma().cultivationNote.deleteMany({ where: { problemLog: { userId } } }),
         getPrisma().problemLogTag.deleteMany({ where: { problemLog: { userId } } }),
         getPrisma().problemLog.deleteMany({ where: { userId } }),
@@ -326,7 +327,7 @@ export async function startServer(options?: { port?: number; host?: string }) {
   // Record Problem
   app.post('/api/problems', authenticate, async (req: any, res) => {
     const userId = req.user.userId;
-    const { title, problemNumber, difficulty, language, link, tags, completedAt, summary, stuckPoints, reviewReminders } = req.body;
+    const { title, problemNumber, difficulty, language, link, tags, completedAt, summary, stuckPoints, reviewReminders, initialReviewResult } = req.body;
 
     if (!summary || !stuckPoints || !reviewReminders) {
       return res.status(400).json({ error: '修行手札不可為空' });
@@ -343,12 +344,19 @@ export async function startServer(options?: { port?: number; host?: string }) {
     const todayStr = new Date().toISOString().substring(0, 10);
     const todayUTC = new Date(todayStr + 'T00:00:00.000Z');
 
+    // Calculate nextReviewDate based on user's self-assessment (default: ok = 3 days)
+    const reviewDaysMap: Record<string, number> = { fail: 1, ok: 3, easy: 7, done: 14 };
+    const reviewDays = reviewDaysMap[initialReviewResult as string] ?? 3;
+    const initialReviewDate = new Date(completedDateUTC);
+    initialReviewDate.setUTCDate(initialReviewDate.getUTCDate() + reviewDays);
+
     try {
       const result = await getPrisma().$transaction(async (tx) => {
         // 1. Create Log & Note
         const log = await tx.problemLog.create({
           data: {
             userId, title, problemNumber, difficulty, language, link, completedAt: date, cultivationEarned: points,
+            reviewLevel: 0, nextReviewDate: initialReviewDate,
             note: { create: { summary, stuckPoints, reviewReminders } },
             tags: { create: tags.map((tagId: number) => ({ tagId })) }
           }
@@ -592,7 +600,7 @@ export async function startServer(options?: { port?: number; host?: string }) {
     const logId = parseInt(req.params.id);
     const userId = req.user.userId;
     if (isNaN(logId)) return res.status(400).json({ error: 'Invalid id' });
-    const { title, problemNumber, difficulty, language, link, completedAt, tags = [], summary, stuckPoints, reviewReminders } = req.body;
+    const { title, problemNumber, difficulty, language, link, completedAt, tags = [], summary, stuckPoints, reviewReminders, nextReviewDate: nextReviewDateInput } = req.body;
     const POINTS: Record<string, number> = { Easy: 10, Medium: 25, Hard: 50 };
     try {
       await getPrisma().$transaction(async (tx) => {
@@ -664,6 +672,7 @@ export async function startServer(options?: { port?: number; host?: string }) {
             link: link || null,
             completedAt: newDateUTC,
             cultivationEarned: newPoints,
+            ...(nextReviewDateInput ? { nextReviewDate: new Date(nextReviewDateInput + 'T00:00:00.000Z') } : {}),
             tags: {
               deleteMany: removedTagIds.length > 0 ? { tagId: { in: removedTagIds } } : undefined,
               create: addedTagIds.map((tagId: number) => ({ tagId })),
@@ -700,25 +709,137 @@ export async function startServer(options?: { port?: number; host?: string }) {
     }
   });
 
-  // Checkin history — derived directly from ProblemLog so historical records always show
+  // Checkin history — merged from ProblemLog (historical compat) + DailyCheckin (covers review-only days)
   app.get('/api/checkins', authenticate, async (req: any, res) => {
     try {
-      const logs = await getPrisma().problemLog.findMany({
-        where: { userId: req.user.userId },
-        select: { completedAt: true },
-      });
-      // Deduplicate by YYYY-MM-DD; handle both Date objects and ISO strings (SQLite quirk)
+      const [logs, checkins] = await Promise.all([
+        getPrisma().problemLog.findMany({
+          where: { userId: req.user.userId },
+          select: { completedAt: true },
+        }),
+        getPrisma().dailyCheckin.findMany({
+          where: { userId: req.user.userId },
+          select: { date: true },
+        }),
+      ]);
       const dateSet = new Set<string>();
       for (const log of logs) {
         const raw = log.completedAt;
         const iso = raw instanceof Date ? raw.toISOString() : String(raw);
-        // iso may be "2026-04-12T00:00:00.000Z" or "2026-04-12 00:00:00" etc.
+        dateSet.add(iso.substring(0, 10));
+      }
+      for (const c of checkins) {
+        const raw = c.date;
+        const iso = raw instanceof Date ? raw.toISOString() : String(raw);
         dateSet.add(iso.substring(0, 10));
       }
       res.json([...dateSet].sort().reverse());
     } catch (err) {
       console.error('[checkins]', err);
       res.status(500).json({ error: 'Failed to fetch checkins' });
+    }
+  });
+
+  // ─── Review System ──────────────────────────────────────────────────────────
+
+  // GET /api/review — return all problems due for review today
+  app.get('/api/review', authenticate, async (req: any, res) => {
+    const userId = req.user.userId;
+    const todayStr = new Date().toISOString().substring(0, 10);
+    const todayUTC = new Date(todayStr + 'T00:00:00.000Z');
+    try {
+      const logs = await getPrisma().problemLog.findMany({
+        where: { userId, nextReviewDate: { lte: todayUTC } },
+        orderBy: { nextReviewDate: 'asc' },
+        include: { note: true, tags: { include: { tag: true } } },
+      });
+      res.json(logs);
+    } catch (err) {
+      console.error('[review list]', err);
+      res.status(500).json({ error: 'Failed to fetch review list' });
+    }
+  });
+
+  // POST /api/review/:id — submit review result
+  app.post('/api/review/:id', authenticate, async (req: any, res) => {
+    const logId = parseInt(req.params.id);
+    const userId = req.user.userId;
+    if (isNaN(logId)) return res.status(400).json({ error: 'Invalid id' });
+
+    const { result, summary, stuckPoints, reviewReminders, customNextReviewDate } = req.body;
+    if (!['fail', 'ok', 'easy', 'done'].includes(result)) {
+      return res.status(400).json({ error: '無效的重修結果' });
+    }
+
+    const todayStr = new Date().toISOString().substring(0, 10);
+    const todayUTC = new Date(todayStr + 'T00:00:00.000Z');
+
+    const daysMap: Record<string, number> = { fail: 1, ok: 3, easy: 7, done: 14 };
+    const levelDelta: Record<string, number> = { fail: -1, ok: 1, easy: 2, done: 3 };
+
+    try {
+      await getPrisma().$transaction(async (tx) => {
+        const log = await tx.problemLog.findFirst({ where: { id: logId, userId } });
+        if (!log) throw new Error('Not found');
+
+        const newReviewLevel = Math.max(0, (log.reviewLevel ?? 0) + levelDelta[result]);
+        // Allow caller to override the calculated next review date
+        const nextReviewDate = customNextReviewDate
+          ? new Date(customNextReviewDate + 'T00:00:00.000Z')
+          : (() => { const d = new Date(todayUTC); d.setUTCDate(d.getUTCDate() + daysMap[result]); return d; })();
+
+        // Update problem log review fields
+        await tx.problemLog.update({
+          where: { id: logId },
+          data: { reviewLevel: newReviewLevel, nextReviewDate, lastReviewResult: result },
+        });
+
+        // Update note (pre-filled, user may have edited/appended)
+        if (summary !== undefined || stuckPoints !== undefined || reviewReminders !== undefined) {
+          const existingNote = await tx.cultivationNote.findUnique({ where: { problemLogId: logId } });
+          if (existingNote) {
+            await tx.cultivationNote.update({
+              where: { problemLogId: logId },
+              data: {
+                summary: summary ?? existingNote.summary,
+                stuckPoints: stuckPoints ?? existingNote.stuckPoints,
+                reviewReminders: reviewReminders ?? existingNote.reviewReminders,
+              },
+            });
+          } else {
+            await tx.cultivationNote.create({
+              data: { problemLogId: logId, summary: summary || '', stuckPoints: stuckPoints || '', reviewReminders: reviewReminders || '' },
+            });
+          }
+        }
+
+        // Record review history
+        await tx.reviewHistory.create({ data: { problemLogId: logId, reviewDate: todayUTC, result } });
+
+        // Daily checkin — trigger for today if not already done
+        const existingCheckin = await tx.dailyCheckin.findUnique({
+          where: { userId_date: { userId, date: todayUTC } },
+        });
+        if (!existingCheckin) {
+          await tx.dailyCheckin.create({ data: { userId, date: todayUTC } });
+          const progressSummary = await tx.userProgressSummary.findUnique({ where: { userId } });
+          if (progressSummary) {
+            const yesterday = new Date(todayUTC);
+            yesterday.setUTCDate(yesterday.getUTCDate() - 1);
+            const isConsecutive = progressSummary.lastCheckinDate?.getTime() === yesterday.getTime();
+            const newStreak = isConsecutive ? progressSummary.currentStreak + 1 : 1;
+            const longestStreak = Math.max(progressSummary.longestStreak, newStreak);
+            await tx.userProgressSummary.update({
+              where: { userId },
+              data: { currentStreak: newStreak, longestStreak, lastCheckinDate: todayUTC },
+            });
+          }
+        }
+      });
+      res.json({ success: true });
+    } catch (err) {
+      console.error('[review submit]', err);
+      res.status(500).json({ error: 'Failed to submit review' });
     }
   });
 

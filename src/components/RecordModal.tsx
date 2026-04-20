@@ -23,6 +23,14 @@ export default function RecordModal({ onClose, onSuccess }: { onClose: () => voi
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [result, setResult] = useState<any>(null);
+  const [initialReviewResult, setInitialReviewResult] = useState<'fail' | 'ok' | 'easy' | 'done'>('ok');
+
+  const REVIEW_OPTIONS: { value: 'fail' | 'ok' | 'easy' | 'done'; label: string; desc: string; base: string; active: string }[] = [
+    { value: 'fail', label: '易忘', desc: '明天',   base: 'border-red-600/60 text-red-300 hover:bg-red-900/20',       active: 'bg-red-900/30 border-red-400/80' },
+    { value: 'ok',   label: '尚可', desc: '3 天後', base: 'border-yellow-600/60 text-yellow-300 hover:bg-yellow-900/20', active: 'bg-yellow-900/30 border-yellow-400/80' },
+    { value: 'easy', label: '輕鬆', desc: '7 天後', base: 'border-emerald-600/60 text-emerald-300 hover:bg-emerald-900/20', active: 'bg-emerald-900/30 border-emerald-400/80' },
+    { value: 'done', label: '精通', desc: '14 天後', base: 'border-sky-600/60 text-sky-300 hover:bg-sky-900/20',          active: 'bg-sky-900/30 border-sky-400/80' },
+  ];
 
   useEffect(() => {
     api('/tags').then(setTags);
@@ -38,7 +46,8 @@ export default function RecordModal({ onClose, onSuccess }: { onClose: () => voi
         method: 'POST',
         body: JSON.stringify({
           ...formData,
-          tags: formData.selectedTags
+          tags: formData.selectedTags,
+          initialReviewResult,
         })
       });
       setResult(res);
@@ -195,6 +204,29 @@ export default function RecordModal({ onClose, onSuccess }: { onClose: () => voi
                     onChange={e => setFormData({...formData, completedAt: e.target.value})}
                     className="w-full px-0 py-2 bg-transparent border-b border-slate-600/50 text-slate-200 focus:outline-none focus:border-amber-500/60 transition-colors"
                   />
+                </div>
+              </div>
+
+              {/* 初始重修時間 */}
+              <div className="border-t border-slate-700/30 pt-5 mt-2">
+                <h3 className="text-base font-semibold text-amber-100/90 mb-1 tracking-wide">本次修煉感受（下次重修時間）</h3>
+                <p className="text-xs text-slate-500 mb-3 tracking-wider">決定這題何時出現在「回爐重煉」列表</p>
+                <div className="grid grid-cols-4 gap-2">
+                  {REVIEW_OPTIONS.map(opt => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => setInitialReviewResult(opt.value)}
+                      className={`flex flex-col items-center px-2 py-2.5 rounded-xl border transition-all ${opt.base} ${
+                        initialReviewResult === opt.value
+                          ? `${opt.active} ring-1 ring-current`
+                          : 'opacity-50'
+                      }`}
+                    >
+                      <span className="text-sm font-semibold tracking-wider">{opt.label}</span>
+                      <span className="text-xs opacity-70 mt-0.5">{opt.desc}</span>
+                    </button>
+                  ))}
                 </div>
               </div>
 

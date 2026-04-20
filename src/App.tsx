@@ -13,6 +13,7 @@ import RealmsPage from './pages/RealmsPage';
 import HistoryPage from './pages/HistoryPage';
 import SettingsPage from './pages/SettingsPage';
 import SutrasPage from './pages/SutrasPage';
+import ReviewPage from './pages/ReviewPage';
 import Layout from './components/Layout';
 
 export default function App() {
@@ -55,6 +56,7 @@ export default function App() {
           <Route path="realms" element={<RealmsPage />} />
           <Route path="sutras" element={<SutrasPage />} />
           <Route path="history" element={<HistoryPage />} />
+          <Route path="review" element={<ReviewPage />} />
           <Route path="settings" element={<SettingsPage />} />
         </Route>
       </Routes>

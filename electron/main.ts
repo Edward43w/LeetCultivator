@@ -41,32 +41,60 @@ async function runMigrations() {
   const dbPath = getDatabasePath();
   const prisma = new PrismaClient({ datasources: { db: { url: `file:${dbPath}` } } } as any);
 
-  try {
-    await prisma.$queryRaw`SELECT 1 FROM "User" LIMIT 1`;
-    console.log('[electron] Database already initialized');
-  } catch {
-    // Tables don't exist — apply migration SQL files
-    const migrationsDir = isDev
-      ? path.join(process.cwd(), 'prisma', 'migrations')
-      : path.join(process.resourcesPath, 'prisma', 'migrations');
+  const migrationsDir = isDev
+    ? path.join(process.cwd(), 'prisma', 'migrations')
+    : path.join(process.resourcesPath, 'prisma', 'migrations');
 
-    const entries = fs.readdirSync(migrationsDir).sort();
-    for (const entry of entries) {
-      const sqlFile = path.join(migrationsDir, entry, 'migration.sql');
-      if (!fs.existsSync(sqlFile)) continue;
-      const sql = fs.readFileSync(sqlFile, 'utf-8');
-      const statements = sql
-        .split(/;\s*\n/)
-        .map((s) => s.replace(/--[^\n]*/g, '').trim())
-        .filter((s) => s.length > 0);
-      for (const stmt of statements) {
+  // Ensure a lightweight migration-tracking table exists
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "_app_migrations" (
+      "name" TEXT NOT NULL PRIMARY KEY,
+      "applied_at" TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `);
+
+  // Collect already-applied migration names
+  const applied = await prisma.$queryRawUnsafe<{ name: string }[]>(
+    `SELECT "name" FROM "_app_migrations"`
+  );
+  const appliedSet = new Set(applied.map((r: { name: string }) => r.name));
+
+  // Apply each pending migration in order
+  const entries = fs.readdirSync(migrationsDir).sort();
+  for (const entry of entries) {
+    if (appliedSet.has(entry)) continue;
+    const sqlFile = path.join(migrationsDir, entry, 'migration.sql');
+    if (!fs.existsSync(sqlFile)) continue;
+
+    const sql = fs.readFileSync(sqlFile, 'utf-8');
+    const statements = sql
+      .split(/;\s*\n/)
+      .map((s) => s.replace(/--[^\n]*/g, '').trim())
+      .filter((s) => s.length > 0);
+
+    for (const stmt of statements) {
+      try {
         await prisma.$executeRawUnsafe(stmt);
+      } catch (err: any) {
+        const msg: string = err?.message ?? '';
+        // Ignore benign "already exists" errors so migrations are idempotent
+        const isAlreadyExists =
+          msg.includes('already exists') ||
+          msg.includes('duplicate column name') ||
+          msg.includes('table') && msg.includes('already');
+        if (!isAlreadyExists) throw err;
+        console.log(`[electron] Skipped (already exists): ${stmt.substring(0, 60)}...`);
       }
     }
-    console.log('[electron] Migrations applied');
+
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO "_app_migrations" ("name") VALUES (?)`,
+      entry
+    );
+    console.log(`[electron] Migration applied: ${entry}`);
   }
 
-  // Seed reference data on a fresh DB
+  // Seed reference data on a fresh DB (no BodyTypes yet)
   const bodyTypeCount = await prisma.bodyType.count();
   if (bodyTypeCount === 0) {
     await seedDatabase(prisma);

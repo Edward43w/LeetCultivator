@@ -2,7 +2,7 @@ import { Outlet, Link, useLocation } from 'react-router-dom';
 import { useState } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { api } from '../lib/api';
-import { BookOpen, History, Settings, Trash2, Home, Menu, X, Layers3, AlertTriangle } from 'lucide-react';
+import { BookOpen, History, Settings, Trash2, Home, Menu, X, Layers3, AlertTriangle, RotateCcw } from 'lucide-react';
 
 export default function Layout() {
   const { logout, user } = useAuthStore();
@@ -31,6 +31,7 @@ export default function Layout() {
     { path: '/realms', icon: Layers3, label: '一窺道途' },
     { path: '/sutras', icon: BookOpen, label: '心經藏書閣' },
     { path: '/history', icon: History, label: '修煉歷程' },
+    { path: '/review', icon: RotateCcw, label: '回爐重煉' },
     { path: '/settings', icon: Settings, label: '個人設定' },
   ];
 

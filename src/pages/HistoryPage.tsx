@@ -4,6 +4,7 @@ import { api } from '../lib/api';
 import { ChevronDown, BookOpen, Pencil, Trash2, X, Check, Search } from 'lucide-react';
 import BackgroundParticles from '../components/BackgroundParticles';
 import { motion, AnimatePresence } from 'framer-motion';
+import { REVIEW_OPTIONS, REVIEW_DAYS, reviewLevelName, LastResultBadge } from '../lib/reviewDisplay';
 
 // ── Edit Modal ────────────────────────────────────────────────────────────────
 function EditModal({ log, allTags, bodyTypes, onClose, onSaved }: { log: any; allTags: any[]; bodyTypes: string[]; onClose: () => void; onSaved: () => void }) {
@@ -19,6 +20,9 @@ function EditModal({ log, allTags, bodyTypes, onClose, onSaved }: { log: any; al
     stuckPoints: log.note?.stuckPoints || '',
     reviewReminders: log.note?.reviewReminders || '',
   });
+  const [reviewInterval, setReviewInterval] = useState<'fail' | 'ok' | 'easy' | 'done'>(
+    (['fail','ok','easy','done'].includes(log.lastReviewResult) ? log.lastReviewResult : 'ok') as 'fail' | 'ok' | 'easy' | 'done'
+  );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -29,9 +33,12 @@ function EditModal({ log, allTags, bodyTypes, onClose, onSaved }: { log: any; al
     e.preventDefault();
     setSaving(true); setError('');
     try {
+      const d = new Date();
+      d.setDate(d.getDate() + REVIEW_DAYS[reviewInterval]);
+      const nextReviewDate = d.toISOString().substring(0, 10);
       await api(`/problems/${log.id}`, {
         method: 'PUT',
-        body: JSON.stringify({ ...form, tags: form.selectedTags }),
+        body: JSON.stringify({ ...form, tags: form.selectedTags, nextReviewDate }),
       });
       onSaved();
     } catch (err: any) {
@@ -85,6 +92,24 @@ function EditModal({ log, allTags, bodyTypes, onClose, onSaved }: { log: any; al
                 <label className="block text-sm text-slate-400 mb-1.5">完成日期 *</label>
                 <input required type="date" value={form.completedAt} onChange={e => setForm({ ...form, completedAt: e.target.value })}
                   className="w-full px-0 py-2 bg-transparent border-b border-slate-600/50 text-slate-200 focus:outline-none focus:border-amber-500/60 transition-colors" />
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-sm text-slate-400 mb-1.5 tracking-wide">本次修煉感受（下次重修時間）</label>
+                <div className="grid grid-cols-4 gap-2 mt-1">
+                  {REVIEW_OPTIONS.map(opt => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => setReviewInterval(opt.value)}
+                      className={`flex flex-col items-center px-2 py-2 rounded-xl border transition-all ${opt.base} ${
+                        reviewInterval === opt.value ? `${opt.active} ring-1 ring-current` : 'opacity-50'
+                      }`}
+                    >
+                      <span className="text-sm font-semibold tracking-wider">{opt.label}</span>
+                      <span className="text-xs opacity-70 mt-0.5">{opt.desc}</span>
+                    </button>
+                  ))}
+                </div>
               </div>
               <div className="md:col-span-2">
                 <label className="block text-sm text-slate-400 mb-1.5">題目連結</label>
@@ -283,6 +308,9 @@ export default function HistoryPage() {
                         <span className="text-sky-400">{log.language}</span>
                         <span className="text-slate-600">·</span>
                         <span className="text-amber-400">+{log.cultivationEarned} 修為</span>
+                        <span className="text-slate-600">·</span>
+                        <span className="text-purple-400 text-xs border border-purple-700/50 px-2 py-0.5 rounded tracking-wider">{reviewLevelName(log.reviewLevel ?? 0)}</span>
+                        <LastResultBadge result={log.lastReviewResult} />
                       </div>
                     </div>
 

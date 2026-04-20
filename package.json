@@ -35,13 +35,24 @@
       "dist/**/*",
       "dist-electron/**/*",
       "prisma/**/*",
+      "!prisma/*.db",
+      "!prisma/*.db-journal",
+      "!prisma/*.db-shm",
+      "!prisma/*.db-wal",
       "node_modules/@prisma/client/**/*",
       "node_modules/.prisma/**/*"
     ],
     "extraResources": [
       {
         "from": "prisma",
-        "to": "prisma"
+        "to": "prisma",
+        "filter": [
+          "**/*",
+          "!*.db",
+          "!*.db-journal",
+          "!*.db-shm",
+          "!*.db-wal"
+        ]
       }
     ],
     "extraFiles": [
